@@ -181,14 +181,19 @@ class HIAStreamlitApp:
         # Quick actions
         st.markdown("### Quick Actions")
         
-        if st.button("📤 Upload Document", use_container_width=True):
-            st.session_state.show_upload = True
+        # Quick upload section
+        st.markdown("#### Quick Upload")
+        uploaded_file = st.file_uploader(
+            "Upload Document",
+            type=['pdf', 'png', 'jpg', 'jpeg', 'docx', 'txt'],
+            key="sidebar_upload"
+        )
         
-        if st.button("💊 Check Medications", use_container_width=True):
-            st.session_state.show_medications = True
-        
-        if st.button("📋 Generate Report", use_container_width=True):
-            st.session_state.show_report_gen = True
+        if uploaded_file:
+            if st.button("🔍 Analyze", use_container_width=True):
+                # Save to session state to process in main area
+                st.session_state.pending_file = uploaded_file
+                st.info("Switch to Document Analysis tab to see results")
         
         # Recent activities
         st.markdown("### Recent Activities")
@@ -271,25 +276,40 @@ class HIAStreamlitApp:
         """Show document upload and analysis interface."""
         st.markdown("## Document Analysis")
         
+        # Check for pending file from sidebar
+        pending_file = st.session_state.get('pending_file', None)
+        
         # File upload
         uploaded_file = st.file_uploader(
             "Upload medical document",
             type=['pdf', 'png', 'jpg', 'jpeg', 'docx', 'txt'],
-            help="Upload lab reports, prescriptions, or medical records"
+            help="Upload lab reports, prescriptions, or medical records",
+            key="main_upload"
         )
         
-        if uploaded_file:
+        # Use pending file if available
+        file_to_process = pending_file or uploaded_file
+        
+        if file_to_process:
             # Save uploaded file temporarily
-            temp_path = Path("temp") / uploaded_file.name
+            temp_path = Path("temp") / file_to_process.name
             temp_path.parent.mkdir(exist_ok=True)
             
             with open(temp_path, "wb") as f:
-                f.write(uploaded_file.getbuffer())
+                f.write(file_to_process.getbuffer())
+            
+            # Show file info
+            st.success(f"📄 Loaded: {file_to_process.name}")
+            st.info(f"File type: {file_to_process.type} | Size: {file_to_process.size:,} bytes")
             
             # Analyze button
-            if st.button("🔍 Analyze Document"):
+            if st.button("🔍 Analyze Document", type="primary", use_container_width=True):
                 with st.spinner("Analyzing document..."):
                     asyncio.run(self._analyze_document(temp_path))
+                    
+            # Clear pending file after processing
+            if pending_file:
+                st.session_state.pending_file = None
         
         # Show analysis results
         if st.session_state.analysis_results:
