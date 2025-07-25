@@ -5,12 +5,15 @@ import os
 from pathlib import Path
 import pandas as pd
 import base64
+import logging
 from typing import Dict, Any, List, Optional
 
 # Import HIA components
 from src.agent import HealthAgentPlanner, HealthAgentExecutor, HealthMemoryStore
 from src.utils import SecurityManager
 from src.api import GeminiClient
+
+logger = logging.getLogger(__name__)
 
 # Page config
 st.set_page_config(
@@ -77,15 +80,21 @@ class HIAStreamlitApp:
         self.gemini_api_key = os.getenv('GEMINI_API_KEY')
         
         # Initialize components
-        self.security_manager = SecurityManager()
-        self.memory_store = HealthMemoryStore()
-        self.planner = HealthAgentPlanner()
-        
-        if self.gemini_api_key:
-            self.executor = HealthAgentExecutor(
-                gemini_api_key=self.gemini_api_key,
-                memory_store=self.memory_store
-            )
+        try:
+            self.security_manager = SecurityManager()
+            self.memory_store = HealthMemoryStore()
+            self.planner = HealthAgentPlanner()
+            
+            if self.gemini_api_key:
+                self.executor = HealthAgentExecutor(
+                    gemini_api_key=self.gemini_api_key,
+                    memory_store=self.memory_store
+                )
+            else:
+                self.executor = None
+        except Exception as e:
+            logger.error(f"Error setting up components: {str(e)}")
+            self.executor = None
     
     def run(self):
         """Main application entry point."""
@@ -140,8 +149,11 @@ class HIAStreamlitApp:
                 if st.button("Save API Key"):
                     if api_key:
                         os.environ['GEMINI_API_KEY'] = api_key
-                        st.success("API Key saved!")
-                        st.rerun()
+                        st.session_state.api_key_updated = True
+                        st.success("API Key saved! Please click 'Try Demo' to continue.")
+                        # Reinitialize components with new API key
+                        self.gemini_api_key = api_key
+                        self.setup_components()
     
     def show_main_app(self):
         """Show main application interface."""
@@ -513,6 +525,10 @@ class HIAStreamlitApp:
         if not self.gemini_api_key:
             st.error("Please set up your Gemini API key first!")
             return
+            
+        if not self.executor:
+            st.error("Please refresh the page after setting up your API key.")
+            return
         
         try:
             # Create analysis task
@@ -522,41 +538,94 @@ class HIAStreamlitApp:
             results = await self.executor.execute_tasks(tasks)
             
             # Process results
+            analysis_found = False
             for result in results:
-                if result.success:
+                if result.success and result.result:
+                    # Extract the analysis data
                     analysis = {
                         'filename': file_path.name,
                         'date': datetime.now().strftime("%Y-%m-%d"),
-                        'summary': result.result.get('analysis', ''),
+                        'summary': result.result.get('analysis', 'Analysis completed'),
                         'values': result.result.get('metrics', []),
-                        'recommendations': ['Schedule follow-up', 'Monitor trends']
+                        'recommendations': ['Review results with your healthcare provider',
+                                          'Monitor any abnormal values',
+                                          'Schedule follow-up if needed']
                     }
+                    
+                    # If we have metrics, format them properly
+                    if isinstance(analysis['values'], dict):
+                        formatted_values = []
+                        for metric_name, metric_data in analysis['values'].items():
+                            if isinstance(metric_data, dict):
+                                formatted_values.append({
+                                    'test_name': metric_name,
+                                    'value': metric_data.get('value', 'N/A'),
+                                    'unit': metric_data.get('unit', ''),
+                                    'status': 'Normal' if metric_data.get('is_normal', True) else 'Abnormal'
+                                })
+                        analysis['values'] = formatted_values
+                    
                     st.session_state.analysis_results.append(analysis)
+                    analysis_found = True
+                    break
             
-            st.success("Document analyzed successfully!")
+            if analysis_found:
+                st.success("Document analyzed successfully!")
+            else:
+                st.warning("Analysis completed but no results were extracted. Please check the document format.")
             
         except Exception as e:
+            logger.error(f"Error in document analysis: {str(e)}")
             st.error(f"Error analyzing document: {str(e)}")
     
     async def _get_chat_response(self, user_input: str) -> str:
         """Get response from health agent."""
         if not self.gemini_api_key:
-            return "Please set up your Gemini API key to use the chat feature."
+            return "Please set up your Gemini API key in the login screen to use the chat feature."
+        
+        if not self.executor:
+            return "Please refresh the page after setting up your API key."
         
         try:
             # Plan and execute tasks
             tasks = self.planner.plan(user_input)
+            
+            # Execute tasks
             results = await self.executor.execute_tasks(tasks)
             
             # Extract response
             for result in results:
-                if result.success and 'answer' in result.result:
-                    return result.result['answer']
+                if result.success:
+                    if 'answer' in result.result:
+                        return result.result['answer']
+                    elif 'analysis' in result.result:
+                        return result.result['analysis']
             
-            return "I'm sorry, I couldn't process your question. Please try rephrasing."
+            # If no direct answer, generate one using context
+            context = await self.memory_store.get_relevant_context(user_input)
+            
+            # Use Gemini directly for Q&A
+            from src.api.gemini_client import GeminiClient
+            gemini = GeminiClient(self.gemini_api_key)
+            
+            prompt = f"""
+            Based on the user's health context and question, provide a helpful response.
+            
+            Context: {context}
+            
+            Question: {user_input}
+            
+            Provide a clear, informative answer. If the question is about specific health metrics,
+            explain what they mean and provide general guidance. Always remind users to consult
+            their healthcare provider for medical advice.
+            """
+            
+            response = await gemini.analyze_text(prompt)
+            return response
             
         except Exception as e:
-            return f"An error occurred: {str(e)}"
+            logger.error(f"Error in chat response: {str(e)}")
+            return f"I encountered an error: {str(e)}. Please make sure your Gemini API key is valid."
     
     async def _generate_report(self, report_type: str, 
                               include_options: List[str]) -> Optional[str]:

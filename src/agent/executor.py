@@ -6,10 +6,10 @@ import json
 
 from .planner import Task, TaskType
 from .memory import HealthMemoryStore
-from ..api.gemini_client import GeminiClient
-from ..api.health_apis import HealthAPIClient
-from ..utils.document_parser import DocumentParser
-from ..utils.visualizations import HealthVisualizer
+from src.api.gemini_client import GeminiClient
+from src.api.health_apis import HealthAPIClient
+from src.utils.document_parser import DocumentParser
+from src.utils.visualizations import HealthVisualizer
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
