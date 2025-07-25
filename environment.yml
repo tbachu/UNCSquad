@@ -1,0 +1,51 @@
+name: hia-health-insights
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  - pip:
+    # Core dependencies
+    - streamlit>=1.28.0
+    - google-generativeai>=0.3.0
+    
+    # Agent and memory
+    - chromadb>=0.4.0
+    - langchain>=0.1.0
+    - sentence-transformers>=2.2.2
+    
+    # Document processing
+    - PyPDF2>=3.0.0
+    - pdf2image>=1.16.0
+    - pytesseract>=0.3.10
+    - python-docx>=0.8.11
+    - pillow>=10.0.0
+    
+    # Data processing and visualization
+    - pandas>=2.0.0
+    - numpy>=1.24.0
+    - matplotlib>=3.7.0
+    - seaborn>=0.12.0
+    - plotly>=5.17.0
+    
+    # Security
+    - cryptography>=41.0.0
+    
+    # API and networking
+    - aiohttp>=3.8.0
+    - requests>=2.31.0
+    
+    # Utilities
+    - python-dotenv>=1.0.0
+    - pyyaml>=6.0
+    
+    # Development tools (optional)
+    - pytest>=7.4.0
+    - black>=23.0.0
+    - flake8>=6.0.0
+    - mypy>=1.5.0
+
+# System dependencies (install separately)
+# - tesseract-ocr (for OCR functionality)
+# - poppler-utils (for PDF to image conversion)
