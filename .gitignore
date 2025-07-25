@@ -1,0 +1,142 @@
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv/
+.env/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment variables and secrets
+.env
+.env.local
+.env.*.local
+*.env
+secrets/
+config/secrets.yml
+
+# API Keys
+*api_key*
+*API_KEY*
+
+# Data and sensitive files
+data/
+*.db
+*.sqlite
+*.sqlite3
+*.enc
+*.key
+.master_key
+.salt
+
+# Temporary files
+temp/
+tmp/
+*.tmp
+*.temp
+cache/
+
+# Logs
+logs/
+*.log
+
+# Reports (may contain sensitive data)
+reports/
+*.pdf
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+
+# Test coverage
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# Documentation builds
+docs/_build/
+docs/_static/
+docs/_templates/
+
+# Package files
+*.tar.gz
+*.zip
+
+# OS files
+Thumbs.db
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Security
+*.pem
+*.p12
+*.pfx
+*.cer
+*.crt
+*.der
+*.priv
+
+# Streamlit
+.streamlit/secrets.toml
+.streamlit/config.toml
+
+# ChromaDB
+chroma/
+*.chroma
+
+# Model files
+models/
+*.ckpt
+*.h5
+*.pkl
+*.joblib
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# User-specific files
+CLAUDE.md
+TODO.md
+NOTES.md
