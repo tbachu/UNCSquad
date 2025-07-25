@@ -26,9 +26,9 @@ class GeminiClient:
         # Configure Gemini
         genai.configure(api_key=self.api_key)
         
-        # Initialize models
-        self.text_model = genai.GenerativeModel('gemini-pro')
-        self.vision_model = genai.GenerativeModel('gemini-pro-vision')
+        # Initialize models - using current model names
+        self.text_model = genai.GenerativeModel('gemini-1.5-flash')
+        self.vision_model = genai.GenerativeModel('gemini-1.5-flash')  # Flash now supports vision
         
         # Safety settings for medical content
         self.safety_settings = {

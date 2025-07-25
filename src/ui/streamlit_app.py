@@ -523,16 +523,21 @@ class HIAStreamlitApp:
     async def _analyze_document(self, file_path: Path):
         """Analyze uploaded document."""
         if not self.gemini_api_key:
-            st.error("Please set up your Gemini API key first!")
+            st.error("⚠️ **Gemini API Key Required**")
+            st.info("Please set up your Gemini API key in the login screen first!")
             return
             
         if not self.executor:
-            st.error("Please refresh the page after setting up your API key.")
+            st.error("⚠️ **System Error**")
+            st.info("Please refresh the page after setting up your API key.")
             return
         
         try:
-            # Create analysis task
-            tasks = self.planner.plan(f"Analyze medical document at {file_path}")
+            # Create analysis task with proper file path
+            tasks = self.planner.plan(f"Analyze medical document at {file_path}", {
+                "file_path": str(file_path),
+                "document_type": "medical"
+            })
             
             # Execute tasks
             results = await self.executor.execute_tasks(tasks)
@@ -570,13 +575,73 @@ class HIAStreamlitApp:
                     break
             
             if analysis_found:
-                st.success("Document analyzed successfully!")
+                st.success("✅ **Document analyzed successfully!**")
             else:
-                st.warning("Analysis completed but no results were extracted. Please check the document format.")
+                st.warning("⚠️ **Analysis completed but no results were extracted.**")
+                st.info("Please check the document format and try again. If the issue persists, the document may be:")
+                st.markdown("• Low quality or blurry image")
+                st.markdown("• Encrypted or password-protected PDF")
+                st.markdown("• Unsupported file format")
+            
+        except RuntimeError as e:
+            # Handle system dependency errors (like missing Tesseract)
+            error_msg = str(e)
+            st.error("🚫 **System Dependency Missing**")
+            st.markdown(f"**Error:** {error_msg}")
+            
+            if "Tesseract" in error_msg:
+                st.info("**To fix this issue:**")
+                st.code("brew install tesseract", language="bash")
+                st.markdown("After installation, refresh this page and try again.")
+            
+        except FileNotFoundError as e:
+            st.error("📄 **File Not Found**")
+            st.markdown(f"The uploaded file could not be found: {str(e)}")
+            st.info("Please try uploading the file again.")
+            
+        except ValueError as e:
+            st.error("📋 **Unsupported File Format**")
+            st.markdown(f"**Error:** {str(e)}")
+            st.info("**Supported formats:** PDF, PNG, JPG, JPEG, DOCX, TXT")
             
         except Exception as e:
             logger.error(f"Error in document analysis: {str(e)}")
-            st.error(f"Error analyzing document: {str(e)}")
+            st.error("❌ **Analysis Failed**")
+            st.markdown(f"**Error:** {str(e)}")
+            
+            # Provide helpful debugging information
+            with st.expander("🔧 Debugging Information"):
+                st.markdown(f"**File:** {file_path}")
+                st.markdown(f"**File exists:** {file_path.exists()}")
+                st.markdown(f"**File size:** {file_path.stat().st_size if file_path.exists() else 'N/A'} bytes")
+                st.markdown(f"**Error type:** {type(e).__name__}")
+                
+                # Check system dependencies
+                st.markdown("**System Dependencies:**")
+                try:
+                    import pytesseract
+                    tesseract_version = pytesseract.get_tesseract_version()
+                    st.success(f"✅ Tesseract OCR: {tesseract_version}")
+                except:
+                    st.error("❌ Tesseract OCR: Not available")
+                
+                try:
+                    import PyPDF2
+                    st.success("✅ PyPDF2: Available")
+                except:
+                    st.error("❌ PyPDF2: Not available")
+                
+                try:
+                    from PIL import Image
+                    st.success("✅ PIL (Image processing): Available")
+                except:
+                    st.error("❌ PIL: Not available")
+                
+                try:
+                    import docx
+                    st.success("✅ python-docx: Available")
+                except:
+                    st.error("❌ python-docx: Not available")
     
     async def _get_chat_response(self, user_input: str) -> str:
         """Get response from health agent."""

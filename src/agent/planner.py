@@ -57,7 +57,7 @@ class HealthAgentPlanner:
         
         # Analyze input to determine task types needed
         if self._contains_document_reference(user_input):
-            tasks.append(self._create_document_task(user_input))
+            tasks.append(self._create_document_task(user_input, context))
             
         if self._is_health_question(user_input):
             tasks.append(self._create_query_task(user_input))
@@ -130,16 +130,22 @@ class HealthAgentPlanner:
                           'prepare', 'print', 'share']
         return any(keyword in text.lower() for keyword in report_keywords)
     
-    def _create_document_task(self, user_input: str) -> Task:
+    def _create_document_task(self, user_input: str, context: Optional[Dict[str, Any]] = None) -> Task:
         """Creates a document analysis task."""
+        parameters = {
+            "input": user_input,
+            "extract_metrics": True,
+            "explain_jargon": True
+        }
+        
+        # Add file path if provided in context
+        if context and "file_path" in context:
+            parameters["file_path"] = context["file_path"]
+        
         return self._create_task(
             TaskType.DOCUMENT_ANALYSIS,
             "Analyze uploaded medical document",
-            {
-                "input": user_input,
-                "extract_metrics": True,
-                "explain_jargon": True
-            }
+            parameters
         )
     
     def _create_query_task(self, user_input: str) -> Task:

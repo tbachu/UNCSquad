@@ -25,28 +25,42 @@ class HealthMemoryStore:
         self.storage_path = Path(storage_path)
         self.storage_path.mkdir(parents=True, exist_ok=True)
         
-        # Initialize ChromaDB for vector storage
-        self.chroma_client = chromadb.PersistentClient(
-            path=str(self.storage_path / "chroma")
-        )
+        # Try to initialize ChromaDB, but fall back to simple storage if it fails
+        self.use_vector_db = False
+        self.documents_collection = None
+        self.insights_collection = None
         
-        # Use sentence transformer for embeddings
-        self.embedding_function = embedding_functions.SentenceTransformerEmbeddingFunction(
-            model_name="all-MiniLM-L6-v2"
-        )
+        try:
+            # Initialize ChromaDB for vector storage
+            self.chroma_client = chromadb.PersistentClient(
+                path=str(self.storage_path / "chroma")
+            )
+            
+            # Use a simpler embedding function that doesn't require onnxruntime
+            try:
+                # Create collections without embedding function to avoid onnxruntime issues
+                self.documents_collection = self.chroma_client.get_or_create_collection(
+                    name="medical_documents"
+                )
+                
+                self.insights_collection = self.chroma_client.get_or_create_collection(
+                    name="health_insights"
+                )
+                self.use_vector_db = True
+                logger.info("ChromaDB initialized successfully")
+                
+            except Exception as e:
+                logger.warning(f"ChromaDB collection creation failed: {str(e)}")
+                raise e
+                
+        except Exception as e:
+            logger.warning(f"ChromaDB initialization failed: {str(e)}")
+            logger.info("Falling back to simple in-memory storage")
+            # Simple fallback storage
+            self.documents_store = {}
+            self.insights_store = []
         
-        # Create collections
-        self.documents_collection = self.chroma_client.get_or_create_collection(
-            name="medical_documents",
-            embedding_function=self.embedding_function
-        )
-        
-        self.insights_collection = self.chroma_client.get_or_create_collection(
-            name="health_insights",
-            embedding_function=self.embedding_function
-        )
-        
-        # Initialize SQLite for structured data
+        # Initialize SQLite for structured data (this should always work)
         self.db_path = self.storage_path / "health_metrics.db"
         self._init_database()
         
@@ -124,18 +138,40 @@ class HealthMemoryStore:
     async def store_document(self, document_id: str, content: str, 
                            document_type: str, metadata: Dict[str, Any]):
         """Stores medical document in vector database."""
-        # Add to ChromaDB
-        self.documents_collection.add(
-            documents=[content],
-            metadatas=[{
-                "document_type": document_type,
-                "timestamp": datetime.now().isoformat(),
-                **metadata
-            }],
-            ids=[document_id]
-        )
+        if self.use_vector_db and self.documents_collection:
+            try:
+                # Add to ChromaDB
+                self.documents_collection.add(
+                    documents=[content],
+                    metadatas=[{
+                        "document_type": document_type,
+                        "timestamp": datetime.now().isoformat(),
+                        **metadata
+                    }],
+                    ids=[document_id]
+                )
+                logger.info(f"Stored document {document_id} of type {document_type} in ChromaDB")
+            except Exception as e:
+                logger.error(f"Failed to store document in ChromaDB: {str(e)}")
+                # Fall back to simple storage
+                self._store_document_simple(document_id, content, document_type, metadata)
+        else:
+            # Use simple storage
+            self._store_document_simple(document_id, content, document_type, metadata)
+    
+    def _store_document_simple(self, document_id: str, content: str, 
+                              document_type: str, metadata: Dict[str, Any]):
+        """Simple document storage fallback."""
+        if not hasattr(self, 'documents_store'):
+            self.documents_store = {}
         
-        logger.info(f"Stored document {document_id} of type {document_type}")
+        self.documents_store[document_id] = {
+            "content": content,
+            "document_type": document_type,
+            "timestamp": datetime.now().isoformat(),
+            **metadata
+        }
+        logger.info(f"Stored document {document_id} of type {document_type} in simple storage")
     
     async def store_task_result(self, task: Any, result: Any):
         """Stores task execution results for future reference."""
@@ -147,14 +183,35 @@ class HealthMemoryStore:
         }
         
         if result.success and result.result:
-            # Extract key insights from result
-            insight_text = json.dumps(result.result)
-            
-            self.insights_collection.add(
-                documents=[insight_text],
-                metadatas=[insight],
-                ids=[f"insight_{task.id}_{datetime.now().timestamp()}"]
-            )
+            if self.use_vector_db and self.insights_collection:
+                try:
+                    # Extract key insights from result
+                    insight_text = json.dumps(result.result)
+                    
+                    self.insights_collection.add(
+                        documents=[insight_text],
+                        metadatas=[insight],
+                        ids=[f"insight_{task.id}_{datetime.now().timestamp()}"]
+                    )
+                    logger.info("Stored task result in ChromaDB")
+                except Exception as e:
+                    logger.error(f"Failed to store task result in ChromaDB: {str(e)}")
+                    self._store_insight_simple(insight, result.result)
+            else:
+                # Use simple storage
+                self._store_insight_simple(insight, result.result)
+    
+    def _store_insight_simple(self, insight: Dict[str, Any], result_data: Any):
+        """Simple insight storage fallback."""
+        if not hasattr(self, 'insights_store'):
+            self.insights_store = []
+        
+        insight_record = {
+            **insight,
+            "result_data": result_data
+        }
+        self.insights_store.append(insight_record)
+        logger.info("Stored task result in simple storage")
     
     async def get_relevant_context(self, query: str, n_results: int = 5) -> Dict[str, Any]:
         """Retrieves relevant context for a query."""
@@ -164,33 +221,80 @@ class HealthMemoryStore:
             "recent_metrics": {}
         }
         
-        # Search relevant documents
-        doc_results = self.documents_collection.query(
-            query_texts=[query],
-            n_results=n_results
-        )
+        if self.use_vector_db and self.documents_collection and self.insights_collection:
+            try:
+                # Search relevant documents
+                doc_results = self.documents_collection.query(
+                    query_texts=[query],
+                    n_results=n_results
+                )
+                
+                if doc_results['documents']:
+                    context['documents'] = [
+                        {
+                            "content": doc,
+                            "metadata": meta
+                        }
+                        for doc, meta in zip(doc_results['documents'][0], 
+                                           doc_results['metadatas'][0])
+                    ]
+                
+                # Search relevant insights
+                insight_results = self.insights_collection.query(
+                    query_texts=[query],
+                    n_results=n_results
+                )
+                
+                if insight_results['documents']:
+                    context['insights'] = insight_results['documents'][0]
+                    
+            except Exception as e:
+                logger.error(f"ChromaDB query failed: {str(e)}")
+                # Fall back to simple search
+                context = self._get_context_simple(query, n_results)
+        else:
+            # Use simple storage
+            context = self._get_context_simple(query, n_results)
         
-        if doc_results['documents']:
-            context['documents'] = [
-                {
-                    "content": doc,
-                    "metadata": meta
-                }
-                for doc, meta in zip(doc_results['documents'][0], 
-                                   doc_results['metadatas'][0])
-            ]
-        
-        # Search relevant insights
-        insight_results = self.insights_collection.query(
-            query_texts=[query],
-            n_results=n_results
-        )
-        
-        if insight_results['documents']:
-            context['insights'] = insight_results['documents'][0]
-        
-        # Get recent metrics
+        # Get recent metrics (this always works)
         context['recent_metrics'] = await self.get_recent_metrics(days=30)
+        
+        return context
+    
+    def _get_context_simple(self, query: str, n_results: int = 5) -> Dict[str, Any]:
+        """Simple context retrieval fallback."""
+        context = {
+            "documents": [],
+            "insights": [],
+            "recent_metrics": {}
+        }
+        
+        # Simple keyword search in documents
+        if hasattr(self, 'documents_store'):
+            query_lower = query.lower()
+            matching_docs = []
+            
+            for doc_id, doc_data in self.documents_store.items():
+                if query_lower in doc_data['content'].lower():
+                    matching_docs.append({
+                        "content": doc_data['content'][:500] + "...",  # Truncate for brevity
+                        "metadata": {k: v for k, v in doc_data.items() if k != 'content'}
+                    })
+                    if len(matching_docs) >= n_results:
+                        break
+            
+            context['documents'] = matching_docs
+        
+        # Simple search in insights
+        if hasattr(self, 'insights_store'):
+            query_lower = query.lower()
+            matching_insights = []
+            
+            for insight in self.insights_store[-n_results:]:  # Get recent insights
+                if query_lower in str(insight.get('result_data', '')).lower():
+                    matching_insights.append(str(insight.get('result_data', '')))
+            
+            context['insights'] = matching_insights
         
         return context
     

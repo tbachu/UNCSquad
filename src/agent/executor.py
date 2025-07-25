@@ -107,35 +107,105 @@ class HealthAgentExecutor:
     async def _execute_document_analysis(self, task: Task) -> Dict[str, Any]:
         """Analyzes medical documents using Gemini's multimodal capabilities."""
         params = task.parameters
+        file_path = params.get('file_path')
+        
+        if not file_path:
+            raise ValueError("No file path provided for document analysis")
+        
+        logger.info(f"Starting document analysis for: {file_path}")
         
         # Parse document (PDF or image)
-        document_content = await self.doc_parser.parse_document(params.get('file_path'))
+        document_content = await self.doc_parser.parse_document(file_path)
         
-        # Use Gemini to analyze the document
+        logger.info(f"Document parsed successfully. Text length: {len(document_content.get('cleaned_text', ''))}")
+        
+        # Check if we got meaningful content
+        cleaned_text = document_content.get('cleaned_text', '')
+        if len(cleaned_text.strip()) < 10:
+            logger.warning("Very little text extracted from document")
+            return {
+                "analysis": "Unable to extract sufficient text from document for analysis",
+                "metrics": {},
+                "document_type": "unknown",
+                "parsing_notes": document_content.get('parsing_notes', [])
+            }
+        
+        # Use the already extracted values from document parser
+        extracted_values = document_content.get('extracted_values', [])
+        
+        # Convert to metrics format - handle duplicates by using unique keys
+        metrics = {}
+        seen_tests = {}  # Track how many times we've seen each test
+        
+        for value in extracted_values:
+            test_name = value.get('test_name', '').strip()
+            if not test_name:
+                continue
+                
+            # Create unique key for metrics
+            base_key = test_name.lower().replace(' ', '_').replace('-', '_')
+            
+            # Handle duplicates by adding a counter
+            if base_key in seen_tests:
+                seen_tests[base_key] += 1
+                unique_key = f"{base_key}_{seen_tests[base_key]}"
+            else:
+                seen_tests[base_key] = 0
+                unique_key = base_key
+            
+            metrics[unique_key] = {
+                'value': value.get('value'),
+                'unit': value.get('unit', ''),
+                'name': test_name
+            }
+        
+        logger.info(f"Extracted {len(metrics)} metrics from document parser")
+        
+        # Use Gemini to analyze the document content
         prompt = f"""
         Analyze this medical document and provide:
-        1. Summary of key findings
-        2. Extracted health metrics (with values and units)
-        3. Medical terms explained in simple language
-        4. Any concerning values or findings
+        1. A clear summary of key findings
+        2. Explanation of any medical terms in simple language
+        3. Identification of concerning values or findings
+        4. General health insights based on the data
         
         Document content:
-        {document_content}
+        Raw text: {cleaned_text[:2000]}...
+        
+        Already extracted metrics: {extracted_values}
+        
+        Provide a comprehensive but concise analysis.
         """
         
-        analysis = await self.gemini_client.analyze_text(prompt)
+        try:
+            analysis = await self.gemini_client.analyze_text(prompt)
+            logger.info("Gemini analysis completed successfully")
+        except Exception as e:
+            logger.error(f"Gemini analysis failed: {str(e)}")
+            analysis = f"AI analysis unavailable: {str(e)}. However, basic metrics were extracted from the document."
         
-        # Extract structured data
-        metrics = self._extract_health_metrics(analysis)
+        # Also try to extract additional metrics from Gemini's analysis
+        gemini_metrics = self._extract_health_metrics(analysis)
+        logger.info(f"Extracted {len(gemini_metrics)} additional metrics from Gemini analysis")
+        
+        # Merge metrics from document parser and Gemini
+        all_metrics = {**metrics, **gemini_metrics}
         
         # Store metrics in memory
-        if metrics:
-            await self.memory_store.store_health_metrics(metrics)
+        if all_metrics:
+            try:
+                await self.memory_store.store_health_metrics(all_metrics)
+                logger.info(f"Stored {len(all_metrics)} metrics in memory")
+            except Exception as e:
+                logger.error(f"Failed to store metrics: {str(e)}")
         
         return {
             "analysis": analysis,
-            "metrics": metrics,
-            "document_type": self._identify_document_type(document_content)
+            "metrics": all_metrics,
+            "document_type": self._identify_document_type(cleaned_text),
+            "parsing_notes": document_content.get('parsing_notes', []),
+            "raw_metrics_count": len(extracted_values),
+            "gemini_metrics_count": len(gemini_metrics)
         }
     
     async def _execute_health_query(self, task: Task) -> Dict[str, Any]:
@@ -346,23 +416,90 @@ class HealthAgentExecutor:
     
     def _extract_health_metrics(self, analysis: str) -> Dict[str, Any]:
         """Extracts structured health metrics from analysis text."""
-        # This would use more sophisticated NLP in production
         metrics = {}
         
-        # Example extraction logic
+        # Enhanced pattern matching for various metric formats
         metric_patterns = {
-            'cholesterol': r'cholesterol[:\s]+(\d+)',
-            'blood_pressure': r'blood pressure[:\s]+(\d+/\d+)',
-            'glucose': r'glucose[:\s]+(\d+)',
-            'hemoglobin': r'hemoglobin[:\s]+(\d+\.?\d*)'
+            'cholesterol': [
+                r'cholesterol[:\s]+(\d+\.?\d*)\s*(mg/dl|mg/dL)?',
+                r'total cholesterol[:\s]+(\d+\.?\d*)',
+                r'chol[:\s]+(\d+\.?\d*)'
+            ],
+            'blood_pressure': [
+                r'blood pressure[:\s]+(\d+/\d+)\s*(mmHg)?',
+                r'bp[:\s]+(\d+/\d+)',
+                r'systolic[:\s]+(\d+)[^\d]*diastolic[:\s]+(\d+)',
+                r'(\d+/\d+)\s*mmHg'
+            ],
+            'glucose': [
+                r'glucose[:\s]+(\d+\.?\d*)\s*(mg/dl|mg/dL)?',
+                r'blood glucose[:\s]+(\d+\.?\d*)',
+                r'sugar[:\s]+(\d+\.?\d*)',
+                r'fasting glucose[:\s]+(\d+\.?\d*)'
+            ],
+            'hemoglobin': [
+                r'hemoglobin[:\s]+(\d+\.?\d*)\s*(g/dl|g/dL)?',
+                r'hgb[:\s]+(\d+\.?\d*)',
+                r'hb[:\s]+(\d+\.?\d*)'
+            ],
+            'hba1c': [
+                r'hba1c[:\s]+(\d+\.?\d*)\s*%?',
+                r'a1c[:\s]+(\d+\.?\d*)',
+                r'glycated hemoglobin[:\s]+(\d+\.?\d*)'
+            ],
+            'ldl': [
+                r'ldl[:\s]+(\d+\.?\d*)\s*(mg/dl|mg/dL)?',
+                r'ldl cholesterol[:\s]+(\d+\.?\d*)'
+            ],
+            'hdl': [
+                r'hdl[:\s]+(\d+\.?\d*)\s*(mg/dl|mg/dL)?',
+                r'hdl cholesterol[:\s]+(\d+\.?\d*)'
+            ],
+            'triglycerides': [
+                r'triglycerides?[:\s]+(\d+\.?\d*)\s*(mg/dl|mg/dL)?',
+                r'trig[:\s]+(\d+\.?\d*)'
+            ],
+            'white_blood_cells': [
+                r'wbc[:\s]+(\d+\.?\d*)\s*(k/ul|K/uL)?',
+                r'white blood cells?[:\s]+(\d+\.?\d*)'
+            ],
+            'red_blood_cells': [
+                r'rbc[:\s]+(\d+\.?\d*)\s*(m/ul|M/uL)?',
+                r'red blood cells?[:\s]+(\d+\.?\d*)'
+            ],
+            'platelets': [
+                r'platelets?[:\s]+(\d+\.?\d*)\s*(k/ul|K/uL)?',
+                r'plt[:\s]+(\d+\.?\d*)'
+            ]
         }
         
         import re
-        for metric, pattern in metric_patterns.items():
-            match = re.search(pattern, analysis, re.IGNORECASE)
-            if match:
-                metrics[metric] = match.group(1)
+        
+        for metric_name, patterns in metric_patterns.items():
+            for pattern in patterns:
+                matches = re.finditer(pattern, analysis, re.IGNORECASE)
+                for match in matches:
+                    value = match.group(1)
+                    unit = match.group(2) if match.lastindex >= 2 else ''
+                    
+                    # Handle special case for blood pressure (systolic/diastolic)
+                    if metric_name == 'blood_pressure' and '/' in value:
+                        metrics[metric_name] = {
+                            'value': value,
+                            'unit': unit or 'mmHg',
+                            'name': 'Blood Pressure'
+                        }
+                    else:
+                        metrics[metric_name] = {
+                            'value': value,
+                            'unit': unit,
+                            'name': metric_name.replace('_', ' ').title()
+                        }
+                    break  # Use first match for each metric
                 
+                if metric_name in metrics:
+                    break  # Found a match, move to next metric
+        
         return metrics
     
     def _identify_document_type(self, content: str) -> str:
