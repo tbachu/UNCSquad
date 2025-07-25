@@ -8,9 +8,9 @@ import base64
 from typing import Dict, Any, List, Optional
 
 # Import HIA components
-from ..agent import HealthAgentPlanner, HealthAgentExecutor, HealthMemoryStore
-from ..utils import SecurityManager
-from ..api import GeminiClient
+from src.agent import HealthAgentPlanner, HealthAgentExecutor, HealthMemoryStore
+from src.utils import SecurityManager
+from src.api import GeminiClient
 
 # Page config
 st.set_page_config(

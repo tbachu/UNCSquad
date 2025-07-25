@@ -10,10 +10,10 @@ import argparse
 import logging
 from pathlib import Path
 
-# Add src to path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Add parent directory to path so we can import from src
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from ui.streamlit_app import run_app
+from src.ui.streamlit_app import run_app
 
 logging.basicConfig(
     level=logging.INFO,
@@ -30,10 +30,10 @@ def main():
         epilog="""
 Examples:
   # Run the web interface
-  python main.py web
+  python src/main.py web
   
   # Run in CLI mode (future feature)
-  python main.py cli --query "What are my recent glucose levels?"
+  python src/main.py cli --query "What are my recent glucose levels?"
   
   # Set API key
   export GEMINI_API_KEY=your_api_key_here
@@ -93,14 +93,17 @@ Examples:
         logger.info("Starting HIA web interface...")
         logger.info(f"Access the application at http://localhost:{args.port}")
         
+        # Get the path to this file
+        main_file = os.path.abspath(__file__)
+        
         # Run Streamlit app
-        os.system(f"streamlit run {__file__} --server.port {args.port}")
+        os.system(f"streamlit run {main_file} --server.port {args.port}")
         
     elif args.mode == 'cli':
         logger.info("CLI mode not yet implemented")
         # TODO: Implement CLI mode
         print("CLI mode is coming soon!")
-        print("For now, please use: python main.py web")
+        print("For now, please use: python src/main.py web")
     
     else:
         parser.print_help()
