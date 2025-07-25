@@ -50,10 +50,8 @@
 }
 
 @layer base {
-  * {
-    @apply border-border;
-  }
   body {
-    @apply bg-background text-foreground;
+    background: #f3f4f6;
+    color: #111827;
   }
 }
