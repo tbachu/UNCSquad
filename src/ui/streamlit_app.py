@@ -23,37 +23,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS
-st.markdown("""
-<style>
-    .main-header {
-        font-size: 3rem;
-        font-weight: bold;
-        color: #2c3e50;
-        text-align: center;
-        margin-bottom: 2rem;
-    }
-    .metric-card {
-        background-color: #f8f9fa;
-        padding: 1.5rem;
-        border-radius: 0.5rem;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        margin-bottom: 1rem;
-    }
-    .health-score-good {
-        color: #27ae60;
-        font-weight: bold;
-    }
-    .health-score-warning {
-        color: #f39c12;
-        font-weight: bold;
-    }
-    .health-score-critical {
-        color: #e74c3c;
-        font-weight: bold;
-    }
-</style>
-""", unsafe_allow_html=True)
+# CSS is now injected via inject_custom_css() method to prevent caching issues
 
 
 class HIAStreamlitApp:
@@ -73,6 +43,302 @@ class HIAStreamlitApp:
             st.session_state.uploaded_files = []
             st.session_state.current_metrics = {}
             st.session_state.analysis_results = []
+            st.session_state.css_loaded = False  # Track CSS loading
+    
+    def inject_custom_css(self):
+        """Inject custom CSS with cache busting and persistent loading."""
+        # Force reload CSS on every run by using timestamp
+        cache_buster = datetime.now().timestamp()
+        st.markdown(f"""
+        <style id="hia-custom-styles-{cache_buster}">
+            /* HIA Custom Styles - Cache buster: {cache_buster} */
+            /* If styles revert after reload, press Ctrl+F5 (Windows) or Cmd+Shift+R (Mac) to hard refresh */
+            
+            /* Import modern fonts with cache busting */
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@300;400;500;600;700&display=swap&v={cache_buster}');
+                
+                /* Root variables for consistent theming */
+                :root {{
+                    --primary-color: #2c5aa0;
+                    --primary-light: #4a90e2;
+                    --primary-dark: #1e3d73;
+                    --secondary-color: #00b894;
+                    --secondary-light: #26d0ce;
+                    --warning-color: #fd79a8;
+                    --danger-color: #e17055;
+                    --success-color: #00b894;
+                    --info-color: #74b9ff;
+                    --light-bg: #f8fafe;
+                    --card-bg: #ffffff;
+                    --text-primary: #2d3436;
+                    --text-secondary: #636e72;
+                    --text-light: #b2bec3;
+                    --border-color: #ddd;
+                    --shadow-light: 0 2px 10px rgba(44, 90, 160, 0.08);
+                    --shadow-medium: 0 4px 20px rgba(44, 90, 160, 0.12);
+                    --shadow-heavy: 0 8px 30px rgba(44, 90, 160, 0.15);
+                    --border-radius: 12px;
+                    --border-radius-lg: 16px;
+                }}
+                
+                /* Force override Streamlit defaults */
+                .main .block-container {{
+                    padding-top: 2rem !important;
+                    padding-bottom: 2rem !important;
+                    max-width: 1400px !important;
+                }}
+                
+                /* Hide Streamlit elements */
+                #MainMenu {{visibility: hidden !important;}}
+                footer {{visibility: hidden !important;}}
+                header {{visibility: hidden !important;}}
+                .stDeployButton {{display: none !important;}}
+                
+                /* Main header styling */
+                .main-header {{
+                    font-family: 'Poppins', sans-serif !important;
+                    font-size: 3.5rem !important;
+                    font-weight: 700 !important;
+                    background: linear-gradient(135deg, var(--primary-color), var(--primary-light)) !important;
+                    -webkit-background-clip: text !important;
+                    -webkit-text-fill-color: transparent !important;
+                    background-clip: text !important;
+                    text-align: center !important;
+                    margin-bottom: 3rem !important;
+                    letter-spacing: -0.02em !important;
+                }}
+                
+                /* Enhanced metric cards */
+                .metric-card {{
+                    background: linear-gradient(145deg, #ffffff, #f8fafe) !important;
+                    padding: 2rem !important;
+                    border-radius: var(--border-radius-lg) !important;
+                    box-shadow: var(--shadow-medium) !important;
+                    margin-bottom: 1.5rem !important;
+                    border: 1px solid rgba(44, 90, 160, 0.08) !important;
+                    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+                    position: relative !important;
+                    overflow: hidden !important;
+                }}
+                
+                .metric-card::before {{
+                    content: '' !important;
+                    position: absolute !important;
+                    top: 0 !important;
+                    left: 0 !important;
+                    right: 0 !important;
+                    height: 4px !important;
+                    background: linear-gradient(90deg, var(--primary-color), var(--secondary-color)) !important;
+                }}
+                
+                .metric-card:hover {{
+                    transform: translateY(-4px) !important;
+                    box-shadow: var(--shadow-heavy) !important;
+                }}
+                
+                .metric-card h4 {{
+                    font-family: 'Inter', sans-serif !important;
+                    font-size: 0.9rem !important;
+                    font-weight: 600 !important;
+                    color: var(--text-secondary) !important;
+                    margin-bottom: 1rem !important;
+                    text-transform: uppercase !important;
+                    letter-spacing: 0.05em !important;
+                }}
+                
+                .metric-card .metric-value {{
+                    font-family: 'Poppins', sans-serif !important;
+                    font-size: 2.2rem !important;
+                    font-weight: 700 !important;
+                    margin-bottom: 0.5rem !important;
+                    line-height: 1 !important;
+                }}
+                
+                /* Health score colors */
+                .health-score-excellent {{ color: var(--success-color) !important; }}
+                .health-score-good {{ color: var(--info-color) !important; }}
+                .health-score-warning {{ color: var(--warning-color) !important; }}
+                .health-score-critical {{ color: var(--danger-color) !important; }}
+                .health-score-unknown {{ color: var(--text-light) !important; }}
+                
+                /* Enhanced buttons */
+                .stButton > button {{
+                    font-family: 'Inter', sans-serif !important;
+                    font-weight: 500 !important;
+                    border-radius: var(--border-radius) !important;
+                    border: none !important;
+                    padding: 0.75rem 2rem !important;
+                    transition: all 0.3s ease !important;
+                    box-shadow: var(--shadow-light) !important;
+                }}
+                
+                .stButton > button:hover {{
+                    transform: translateY(-1px) !important;
+                    box-shadow: var(--shadow-medium) !important;
+                }}
+                
+                .stButton > button[kind="primary"], .stButton > button[type="primary"] {{
+                    background: linear-gradient(135deg, var(--primary-color), var(--primary-light)) !important;
+                    color: white !important;
+                }}
+                
+                /* Form styling */
+                .stTextInput > div > div > input,
+                .stTextArea > div > div > textarea,
+                .stSelectbox > div > div > select {{
+                    border-radius: var(--border-radius) !important;
+                    border: 2px solid var(--border-color) !important;
+                    padding: 0.75rem !important;
+                    font-family: 'Inter', sans-serif !important;
+                    transition: border-color 0.3s ease, box-shadow 0.3s ease !important;
+                    background-color: white !important;
+                }}
+                
+                .stTextInput > div > div > input:focus,
+                .stTextArea > div > div > textarea:focus,
+                .stSelectbox > div > div > select:focus {{
+                    border-color: var(--primary-color) !important;
+                    box-shadow: 0 0 0 3px rgba(44, 90, 160, 0.1) !important;
+                    outline: none !important;
+                }}
+                
+                /* Tab styling */
+                .stTabs [data-baseweb="tab-list"] {{
+                    gap: 1rem !important;
+                    background-color: transparent !important;
+                    border-bottom: 2px solid var(--border-color) !important;
+                }}
+                
+                .stTabs [data-baseweb="tab"] {{
+                    height: 3rem !important;
+                    padding: 0 1.5rem !important;
+                    border-radius: var(--border-radius) var(--border-radius) 0 0 !important;
+                    font-family: 'Inter', sans-serif !important;
+                    font-weight: 500 !important;
+                    color: var(--text-secondary) !important;
+                    background-color: transparent !important;
+                    border: none !important;
+                    transition: all 0.3s ease !important;
+                }}
+                
+                .stTabs [aria-selected="true"] {{
+                    background-color: var(--primary-color) !important;
+                    color: white !important;
+                    box-shadow: var(--shadow-light) !important;
+                }}
+                
+                /* Sidebar styling */
+                .css-1d391kg {{
+                    background: linear-gradient(180deg, var(--light-bg), #ffffff) !important;
+                    border-right: 1px solid var(--border-color) !important;
+                }}
+                
+                /* Info cards */
+                .info-card {{
+                    background: linear-gradient(145deg, #ffffff, #f8fafe) !important;
+                    border: 1px solid rgba(44, 90, 160, 0.08) !important;
+                    border-left: 4px solid var(--info-color) !important;
+                    border-radius: var(--border-radius) !important;
+                    padding: 1.5rem !important;
+                    margin-bottom: 1.5rem !important;
+                    box-shadow: var(--shadow-light) !important;
+                    transition: all 0.3s ease !important;
+                }}
+                
+                .info-card:hover {{ box-shadow: var(--shadow-medium) !important; }}
+                .warning-card {{ border-left-color: var(--warning-color) !important; background: linear-gradient(145deg, #fff8f0, #ffffff) !important; }}
+                .success-card {{ border-left-color: var(--success-color) !important; background: linear-gradient(145deg, #f0fff8, #ffffff) !important; }}
+                .error-card {{ border-left-color: var(--danger-color) !important; background: linear-gradient(145deg, #fff0f0, #ffffff) !important; }}
+                
+                /* Progress bars */
+                .stProgress > div > div > div > div {{
+                    background: linear-gradient(90deg, var(--primary-color), var(--secondary-color)) !important;
+                    border-radius: 10px !important;
+                }}
+                
+                /* File uploader styling */
+                .stFileUploader {{
+                    background-color: var(--light-bg) !important;
+                    border: 2px dashed var(--border-color) !important;
+                    border-radius: var(--border-radius-lg) !important;
+                    padding: 2rem !important;
+                    transition: all 0.3s ease !important;
+                }}
+                
+                .stFileUploader:hover {{
+                    border-color: var(--primary-color) !important;
+                    background-color: rgba(44, 90, 160, 0.02) !important;
+                }}
+                
+                /* Section headers */
+                .section-header {{
+                    font-family: 'Poppins', sans-serif !important;
+                    font-size: 1.8rem !important;
+                    font-weight: 600 !important;
+                    color: var(--text-primary) !important;
+                    margin-bottom: 2rem !important;
+                    padding-bottom: 0.5rem !important;
+                    border-bottom: 2px solid var(--border-color) !important;
+                    position: relative !important;
+                }}
+                
+                .section-header::after {{
+                    content: '' !important;
+                    position: absolute !important;
+                    bottom: -2px !important;
+                    left: 0 !important;
+                    width: 60px !important;
+                    height: 2px !important;
+                    background: linear-gradient(90deg, var(--primary-color), var(--secondary-color)) !important;
+                }}
+                
+                /* Animation classes */
+                .fade-in-up {{
+                    animation: fadeInUp 0.6s ease-out !important;
+                }}
+                
+                @keyframes fadeInUp {{
+                    from {{
+                        opacity: 0;
+                        transform: translateY(20px);
+                    }}
+                    to {{
+                        opacity: 1;
+                        transform: translateY(0);
+                    }}
+                }}
+                
+                /* Typography improvements */
+                h1, h2, h3, h4, h5, h6 {{
+                    font-family: 'Poppins', sans-serif !important;
+                    color: var(--text-primary) !important;
+                    font-weight: 600 !important;
+                }}
+                
+                p, li, span, div {{
+                    font-family: 'Inter', sans-serif !important;
+                    color: var(--text-primary) !important;
+                    line-height: 1.6 !important;
+                }}
+                
+                /* Responsive design */
+                @media (max-width: 768px) {{
+                    .main-header {{ font-size: 2.5rem !important; }}
+                    .metric-card {{ margin-bottom: 1rem !important; }}
+                }}
+        </style>
+        """, unsafe_allow_html=True)
+        
+        # Also inject a small script to force style refresh
+        st.markdown(f"""
+        <script>
+            // Force refresh styles - cache buster: {cache_buster}
+            if (typeof window.hia_styles_loaded === 'undefined') {{
+                window.hia_styles_loaded = true;
+                console.log('HIA Custom Styles Loaded - Version: {cache_buster}');
+            }}
+        </script>
+        """, unsafe_allow_html=True)
     
     def setup_components(self):
         """Setup HIA components."""
@@ -98,6 +364,9 @@ class HIAStreamlitApp:
     
     def run(self):
         """Main application entry point."""
+        # Inject custom CSS first to ensure consistent styling
+        self.inject_custom_css()
+        
         # Header
         st.markdown('<h1 class="main-header">🏥 HIA - Health Insights Agent</h1>', 
                    unsafe_allow_html=True)
@@ -113,20 +382,117 @@ class HIAStreamlitApp:
         col1, col2, col3 = st.columns([1, 2, 1])
         
         with col2:
-            st.markdown("### Welcome to HIA")
-            st.markdown("Your personal AI health analyst")
+            # Modern welcome section with enhanced styling
+            st.markdown("""
+            <div style="
+                text-align: center;
+                padding: 3rem 2rem;
+                background: linear-gradient(145deg, #ffffff, #f8fafe);
+                border-radius: 16px;
+                box-shadow: 0 8px 30px rgba(44, 90, 160, 0.15);
+                margin-bottom: 2rem;
+                border: 1px solid rgba(44, 90, 160, 0.08);
+            ">
+                <div style="font-size: 4rem; margin-bottom: 1rem;">🏥</div>
+                <h2 style="
+                    font-family: 'Poppins', sans-serif;
+                    font-weight: 700;
+                    font-size: 2.2rem;
+                    background: linear-gradient(135deg, #2c5aa0, #4a90e2);
+                    -webkit-background-clip: text;
+                    -webkit-text-fill-color: transparent;
+                    background-clip: text;
+                    margin-bottom: 0.5rem;
+                ">
+                    Welcome to HIA
+                </h2>
+                <p style="
+                    font-family: 'Inter', sans-serif;
+                    font-size: 1.1rem;
+                    color: #636e72;
+                    margin-bottom: 0;
+                ">
+                    Your personal AI health analyst
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Enhanced login form container
+            st.markdown("""
+            <div style="
+                background: linear-gradient(145deg, #ffffff, #f8fafe);
+                border-radius: 16px;
+                padding: 2.5rem;
+                box-shadow: 0 4px 20px rgba(44, 90, 160, 0.12);
+                border: 1px solid rgba(44, 90, 160, 0.08);
+                margin-bottom: 2rem;
+            ">
+            """, unsafe_allow_html=True)
+            
+            st.markdown("""
+            <style>
+                .login-form .stTextInput > div > div > input {
+                    border-radius: 12px !important;
+                    border: 2px solid #ddd !important;
+                    padding: 0.75rem !important;
+                    font-family: 'Inter', sans-serif !important;
+                    transition: all 0.3s ease !important;
+                    background-color: #ffffff !important;
+                }
+                .login-form .stTextInput > div > div > input:focus {
+                    border-color: #2c5aa0 !important;
+                    box-shadow: 0 0 0 3px rgba(44, 90, 160, 0.1) !important;
+                }
+                .login-form .stButton > button {
+                    border-radius: 12px !important;
+                    padding: 0.75rem 2rem !important;
+                    font-family: 'Inter', sans-serif !important;
+                    font-weight: 500 !important;
+                    transition: all 0.3s ease !important;
+                    border: none !important;
+                    box-shadow: 0 2px 10px rgba(44, 90, 160, 0.08) !important;
+                }
+                .login-form .stButton > button:hover {
+                    transform: translateY(-1px) !important;
+                    box-shadow: 0 4px 20px rgba(44, 90, 160, 0.15) !important;
+                }
+                .login-form .stButton > button[kind="primary"] {
+                    background: linear-gradient(135deg, #2c5aa0, #4a90e2) !important;
+                    color: white !important;
+                }
+            </style>
+            """, unsafe_allow_html=True)
             
             # Simple authentication (in production, use proper auth)
-            with st.form("login_form"):
-                username = st.text_input("Username", placeholder="Enter your username")
-                password = st.text_input("Password", type="password", 
-                                       placeholder="Enter your password")
+            with st.form("login_form", clear_on_submit=False):
+                st.markdown('<div class="login-form">', unsafe_allow_html=True)
+                
+                st.markdown("""
+                <h3 style="
+                    font-family: 'Poppins', sans-serif;
+                    font-weight: 600;
+                    color: #2c5aa0;
+                    text-align: center;
+                    margin-bottom: 1.5rem;
+                    font-size: 1.3rem;
+                ">
+                    🔐 Sign In to Continue
+                </h3>
+                """, unsafe_allow_html=True)
+                
+                username = st.text_input("👤 Username", placeholder="Enter your username", key="login_username")
+                password = st.text_input("🔒 Password", type="password", 
+                                       placeholder="Enter your password", key="login_password")
+                
+                st.markdown("<br>", unsafe_allow_html=True)
                 
                 col1, col2 = st.columns(2)
                 with col1:
-                    login_button = st.form_submit_button("Login", use_container_width=True)
+                    login_button = st.form_submit_button("🚀 Login", use_container_width=True, type="primary")
                 with col2:
-                    demo_button = st.form_submit_button("Try Demo", use_container_width=True)
+                    demo_button = st.form_submit_button("🎯 Try Demo", use_container_width=True)
+                
+                st.markdown('</div>', unsafe_allow_html=True)
                 
                 if login_button:
                     # Validate credentials (simplified for demo)
@@ -142,18 +508,79 @@ class HIAStreamlitApp:
                     st.session_state.session_token = self.security_manager.create_session("demo_user")
                     st.rerun()
             
-            # API Key setup
-            with st.expander("Setup Gemini API Key"):
-                api_key = st.text_input("Gemini API Key", type="password",
-                                      help="Enter your Google Gemini API key")
-                if st.button("Save API Key"):
+            st.markdown('</div>', unsafe_allow_html=True)  # Close login form container
+            
+            # Enhanced API Key setup
+            st.markdown("""
+            <div style="
+                background: linear-gradient(145deg, #f8fafe, #ffffff);
+                border: 1px solid rgba(116, 185, 255, 0.2);
+                border-radius: 16px;
+                padding: 2rem;
+                margin-top: 1.5rem;
+                box-shadow: 0 2px 10px rgba(116, 185, 255, 0.08);
+            ">
+                <div style="display: flex; align-items: center; margin-bottom: 1rem;">
+                    <div style="font-size: 1.5rem; margin-right: 0.75rem;">🔑</div>
+                    <h4 style="
+                        font-family: 'Poppins', sans-serif;
+                        font-weight: 600;
+                        color: #74b9ff;
+                        margin: 0;
+                        font-size: 1.1rem;
+                    ">
+                        Setup Gemini API Key
+                    </h4>
+                </div>
+                <p style="
+                    font-family: 'Inter', sans-serif;
+                    color: #636e72;
+                    font-size: 0.9rem;
+                    margin-bottom: 1.5rem;
+                    line-height: 1.5;
+                ">
+                    To use the AI analysis features, please provide your Google Gemini API key.
+                    <a href="https://makersuite.google.com/app/apikey" target="_blank" style="color: #74b9ff; text-decoration: none;">
+                        Get your API key here →
+                    </a>
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            with st.expander("🔑 Configure API Key", expanded=False):
+                st.markdown("""
+                <style>
+                    .api-form .stTextInput > div > div > input {
+                        border-radius: 8px !important;
+                        border: 1px solid #ddd !important;
+                        font-family: 'Inter', sans-serif !important;
+                    }
+                    .api-form .stButton > button {
+                        background: linear-gradient(135deg, #74b9ff, #4a90e2) !important;
+                        color: white !important;
+                        border-radius: 8px !important;
+                        border: none !important;
+                        font-family: 'Inter', sans-serif !important;
+                        font-weight: 500 !important;
+                    }
+                </style>
+                """, unsafe_allow_html=True)
+                
+                st.markdown('<div class="api-form">', unsafe_allow_html=True)
+                api_key = st.text_input("🔐 Gemini API Key", type="password",
+                                      help="Enter your Google Gemini API key", 
+                                      placeholder="Enter your API key...")
+                if st.button("💾 Save API Key", use_container_width=True):
                     if api_key:
                         os.environ['GEMINI_API_KEY'] = api_key
                         st.session_state.api_key_updated = True
-                        st.success("API Key saved! Please click 'Try Demo' to continue.")
+                        st.success("✅ API Key saved! Please click 'Try Demo' to continue.")
                         # Reinitialize components with new API key
                         self.gemini_api_key = api_key
                         self.setup_components()
+                    else:
+                        st.error("❌ Please enter a valid API key")
+                st.markdown('</div>', unsafe_allow_html=True)
     
     def show_main_app(self):
         """Show main application interface."""
@@ -187,11 +614,29 @@ class HIAStreamlitApp:
     
     def show_sidebar(self):
         """Show sidebar with user info and settings."""
-        st.markdown("### User Profile")
-        st.markdown(f"**Session:** Active")
+        # User profile section with modern styling
+        st.markdown("""
+        <div style="
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-light));
+            color: white;
+            padding: 1.5rem;
+            border-radius: var(--border-radius-lg);
+            margin-bottom: 2rem;
+            text-align: center;
+            box-shadow: var(--shadow-medium);
+        ">
+            <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">👤</div>
+            <div style="font-family: 'Poppins', sans-serif; font-weight: 600; font-size: 1.1rem; margin-bottom: 0.25rem;">
+                Health Dashboard
+            </div>
+            <div style="font-size: 0.9rem; opacity: 0.9; font-family: 'Inter', sans-serif;">
+                Session Active
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
         
         # Quick actions
-        st.markdown("### Quick Actions")
+        st.markdown('<div class="section-header" style="font-size: 1.1rem; margin-bottom: 1.5rem;">⚡ Quick Actions</div>', unsafe_allow_html=True)
         
         # Quick upload section
         st.markdown("#### Quick Upload")
@@ -208,10 +653,44 @@ class HIAStreamlitApp:
                 st.info("Switch to Document Analysis tab to see results")
         
         # Recent activities
-        st.markdown("### Recent Activities")
-        activities = st.session_state.get('recent_activities', [])
-        for activity in activities[-5:]:
-            st.markdown(f"- {activity}")
+        st.markdown('<div class="section-header" style="font-size: 1.1rem; margin: 2rem 0 1.5rem 0;">📋 Recent Activities</div>', unsafe_allow_html=True)
+        activities = st.session_state.get('recent_activities', [
+            "Document analyzed - Lab Report.pdf",
+            "Health score updated - 85/100",
+            "Recommendation generated",
+            "Metrics synchronized",
+            "Report generated"
+        ])
+        
+        for i, activity in enumerate(activities[-5:]):
+            st.markdown(f"""
+            <div style="
+                display: flex;
+                align-items: center;
+                padding: 0.75rem;
+                background-color: var(--light-bg);
+                border-radius: var(--border-radius);
+                margin-bottom: 0.5rem;
+                border-left: 3px solid var(--primary-color);
+                transition: all 0.3s ease;
+            " onmouseover="this.style.backgroundColor='rgba(44, 90, 160, 0.05)'"
+               onmouseout="this.style.backgroundColor='var(--light-bg)'">
+                <div style="
+                    width: 8px;
+                    height: 8px;
+                    background-color: var(--secondary-color);
+                    border-radius: 50%;
+                    margin-right: 0.75rem;
+                "></div>
+                <div style="
+                    font-family: 'Inter', sans-serif;
+                    font-size: 0.85rem;
+                    color: var(--text-primary);
+                ">
+                    {activity}
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
         
         # Settings
         with st.expander("⚙️ Settings"):
@@ -227,7 +706,7 @@ class HIAStreamlitApp:
     
     def show_dashboard(self):
         """Show main dashboard with health overview."""
-        st.markdown("## Health Overview")
+        st.markdown('<div class="section-header">🩺 Health Overview</div>', unsafe_allow_html=True)
         
         # Fetch recent metrics
         asyncio.run(self._update_dashboard_metrics())
@@ -258,35 +737,87 @@ class HIAStreamlitApp:
                                  metrics.get('bmi', {}).get('status', 'unknown'))
         
         # Health insights
-        st.markdown("### Recent Insights")
+        st.markdown('<div class="section-header" style="font-size: 1.4rem; margin-top: 3rem;">💡 Recent Insights</div>', unsafe_allow_html=True)
         
         insights = st.session_state.get('recent_insights', [
-            "Your blood pressure has been stable over the past month",
-            "Cholesterol levels show improvement since last quarter",
-            "Consider discussing vitamin D supplementation with your doctor"
+            {
+                "text": "Your blood pressure has been stable over the past month",
+                "type": "success",
+                "icon": "✅"
+            },
+            {
+                "text": "Cholesterol levels show improvement since last quarter", 
+                "type": "success",
+                "icon": "📈"
+            },
+            {
+                "text": "Consider discussing vitamin D supplementation with your doctor",
+                "type": "info", 
+                "icon": "💊"
+            }
         ])
         
         for insight in insights:
-            st.info(f"💡 {insight}")
+            insight_type = insight.get('type', 'info')
+            card_class = f"{insight_type}-card" if insight_type in ['success', 'warning', 'error'] else "info-card"
+            
+            st.markdown(f"""
+            <div class="{card_class}">
+                <div style="display: flex; align-items: flex-start; gap: 1rem;">
+                    <div style="font-size: 1.5rem; flex-shrink: 0;">{insight['icon']}</div>
+                    <div style="flex: 1;">
+                        <p style="margin: 0; line-height: 1.6; font-family: 'Inter', sans-serif; font-size: 0.95rem;">
+                            {insight['text']}
+                        </p>
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
         
         # Quick stats
         col1, col2 = st.columns(2)
         
         with col1:
-            st.markdown("### Health Score")
+            st.markdown('<div class="section-header" style="font-size: 1.2rem;">📊 Health Score</div>', unsafe_allow_html=True)
             health_score = st.session_state.get('health_score', 75)
             st.progress(health_score / 100)
-            st.markdown(f"**Overall Health Score: {health_score}/100**")
+            
+            # Enhanced health score display
+            score_color = "var(--success-color)" if health_score >= 80 else "var(--warning-color)" if health_score >= 60 else "var(--danger-color)"
+            st.markdown(f"""
+            <div style="text-align: center; margin-top: 1rem;">
+                <div style="font-size: 2.5rem; font-weight: 700; color: {score_color}; font-family: 'Poppins', sans-serif;">
+                    {health_score}/100
+                </div>
+                <div style="color: var(--text-secondary); font-size: 0.9rem; margin-top: 0.5rem;">
+                    Overall Health Score
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
         
         with col2:
-            st.markdown("### Upcoming")
-            st.markdown("- 🗓️ Annual check-up - Feb 15")
-            st.markdown("- 💉 Flu vaccine - Oct 1")
-            st.markdown("- 🦷 Dental cleaning - Mar 20")
+            st.markdown('<div class="section-header" style="font-size: 1.2rem;">📅 Upcoming</div>', unsafe_allow_html=True)
+            upcoming_items = [
+                {"icon": "🗓️", "text": "Annual check-up", "date": "Feb 15"},
+                {"icon": "💉", "text": "Flu vaccine", "date": "Oct 1"},
+                {"icon": "🦷", "text": "Dental cleaning", "date": "Mar 20"}
+            ]
+            
+            for item in upcoming_items:
+                st.markdown(f"""
+                <div style="display: flex; align-items: center; padding: 0.75rem; background-color: var(--light-bg); 
+                           border-radius: var(--border-radius); margin-bottom: 0.5rem; transition: all 0.3s ease;">
+                    <span style="font-size: 1.2rem; margin-right: 1rem;">{item['icon']}</span>
+                    <div style="flex: 1;">
+                        <div style="font-weight: 500; color: var(--text-primary);">{item['text']}</div>
+                        <div style="font-size: 0.8rem; color: var(--text-secondary);">{item['date']}</div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
     
     def show_document_analysis(self):
         """Show document upload and analysis interface."""
-        st.markdown("## Document Analysis")
+        st.markdown('<div class="section-header">📄 Document Analysis</div>', unsafe_allow_html=True)
         
         # Check for pending file from sidebar
         pending_file = st.session_state.get('pending_file', None)
@@ -325,7 +856,7 @@ class HIAStreamlitApp:
         
         # Show analysis results
         if st.session_state.analysis_results:
-            st.markdown("### Analysis Results")
+            st.markdown('<div class="section-header" style="font-size: 1.4rem; margin-top: 3rem;">📊 Analysis Results</div>', unsafe_allow_html=True)
             
             for result in st.session_state.analysis_results:
                 with st.expander(f"📄 {result['filename']} - {result['date']}"):
@@ -343,7 +874,7 @@ class HIAStreamlitApp:
     
     def show_health_qa(self):
         """Show health Q&A chat interface."""
-        st.markdown("## Health Q&A")
+        st.markdown('<div class="section-header">💬 Health Q&A</div>', unsafe_allow_html=True)
         
         # Chat interface
         chat_container = st.container()
@@ -387,7 +918,7 @@ class HIAStreamlitApp:
     
     def show_trends(self):
         """Show health trends and analytics."""
-        st.markdown("## Health Trends & Analytics")
+        st.markdown('<div class="section-header">📈 Health Trends & Analytics</div>', unsafe_allow_html=True)
         
         # Time range selector
         col1, col2 = st.columns([3, 1])
@@ -417,7 +948,7 @@ class HIAStreamlitApp:
                 chart_placeholder.info(f"Chart for {metric} would be displayed here")
         
         # Insights section
-        st.markdown("### Key Insights")
+        st.markdown('<div class="section-header" style="font-size: 1.4rem; margin-top: 3rem;">🔍 Key Insights</div>', unsafe_allow_html=True)
         
         col1, col2 = st.columns(2)
         
@@ -435,7 +966,7 @@ class HIAStreamlitApp:
     
     def show_reports(self):
         """Show report generation and history."""
-        st.markdown("## Health Reports")
+        st.markdown('<div class="section-header">⚕️ Health Reports</div>', unsafe_allow_html=True)
         
         col1, col2 = st.columns(2)
         
@@ -497,18 +1028,28 @@ class HIAStreamlitApp:
     
     # Helper methods
     def _show_metric_card(self, name: str, value: str, status: str):
-        """Display a metric card."""
-        status_class = {
-            'normal': 'health-score-good',
-            'warning': 'health-score-warning',
-            'critical': 'health-score-critical',
-            'unknown': ''
-        }.get(status, '')
+        """Display an enhanced metric card with modern styling."""
+        # Map status to appropriate classes and icons
+        status_mapping = {
+            'normal': {'class': 'health-score-excellent', 'icon': '✅', 'label': 'Normal'},
+            'good': {'class': 'health-score-good', 'icon': '💙', 'label': 'Good'},
+            'warning': {'class': 'health-score-warning', 'icon': '⚠️', 'label': 'Attention'},
+            'critical': {'class': 'health-score-critical', 'icon': '🚨', 'label': 'Critical'},
+            'unknown': {'class': 'health-score-unknown', 'icon': '❓', 'label': 'No Data'}
+        }
+        
+        status_info = status_mapping.get(status, status_mapping['unknown'])
         
         st.markdown(f"""
-        <div class="metric-card">
-            <h4>{name}</h4>
-            <p class="{status_class}" style="font-size: 1.5rem;">{value}</p>
+        <div class="metric-card fade-in-up">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem;">
+                <h4>{name}</h4>
+                <span style="font-size: 1.2rem;">{status_info['icon']}</span>
+            </div>
+            <div class="metric-value {status_info['class']}">{value}</div>
+            <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.5rem;">
+                Status: {status_info['label']}
+            </div>
         </div>
         """, unsafe_allow_html=True)
     
