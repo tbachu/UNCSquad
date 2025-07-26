@@ -71,5 +71,6 @@ else:
     print("⚠️  test_document.txt not found")
 
 print("\n✨ Setup test complete!")
-print("\nTo run the simple app:")
-print("streamlit run src/simple_app.py")
+print("\nTo run the app:")
+print("streamlit run src/main.py")
+print("\nThis runs the v2 app with full document-aware Q&A!")

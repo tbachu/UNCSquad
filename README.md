@@ -59,6 +59,8 @@ Full list in `requirements.txt`
    source venv/bin/activate
    streamlit run src/main.py
    ```
+   
+   This runs the latest version (v2) with full document-aware Q&A functionality.
 
 3. **Access the app:**
    - Open browser to `http://localhost:8501`
@@ -307,7 +309,7 @@ See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for common issues and solutions.
 
 Quick fixes:
 - **API Key Issues**: Make sure to click "Set API Key" button after entering it
-- **Black Screen**: Use the fixed version in `src/app_v2.py`
+- **Black Screen**: Already fixed in the current version
 - **Q&A Not Working**: Upload documents first, then ask specific questions
 - **OCR Errors**: Install Tesseract for image processing
 

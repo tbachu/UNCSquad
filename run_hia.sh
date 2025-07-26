@@ -47,5 +47,5 @@ echo ""
 echo "Starting app in 3 seconds..."
 sleep 3
 
-# Run the fixed app
-streamlit run src/app_fixed.py
+# Run the app
+streamlit run src/main.py
