@@ -152,3 +152,98 @@ The brain of HIA, consisting of three main components:
 - **Health APIs**: External medical databases
 - **Future**: Apple Health, Google Fit, wearables
 - **Export**: PDF reports, CSV data, HL7/FHIR
+
+## Logging and Observability
+
+### Logging Strategy
+- **Framework**: Python `logging` module with structured output
+- **Levels**: 
+  - INFO: Normal operations, document processing, API calls
+  - WARNING: Degraded operations, fallbacks
+  - ERROR: Failures requiring attention
+  - DEBUG: Detailed execution flow (development)
+
+### Key Logging Points
+```python
+# Document processing
+logger.info(f"Processing document: {filename}")
+logger.info(f"Extracted {len(metrics)} health metrics")
+
+# API interactions
+logger.info(f"Calling Gemini API for analysis")
+logger.error(f"Gemini API error: {error}")
+
+# Task execution
+logger.info(f"Executing task {task.id}: {task.description}")
+logger.info(f"Task {task.id} completed successfully")
+
+# Memory operations
+logger.info(f"Stored {len(metrics)} metrics to database")
+logger.warning(f"ChromaDB unavailable, using fallback storage")
+```
+
+### Observability Features
+1. **Request Tracking**: Each user request gets a unique session ID
+2. **Performance Metrics**: Track API latency, document processing time
+3. **Error Tracking**: Capture and categorize errors for debugging
+4. **Usage Analytics**: Monitor feature usage, document types processed
+5. **Health Checks**: Verify all components are operational
+
+### Monitoring Dashboard (Future)
+- Real-time system health
+- API usage and limits
+- Error rates and types
+- User activity patterns
+- Performance metrics
+
+## Tool Integration Details
+
+### Gemini API Integration
+```python
+# Configuration
+genai.configure(api_key=api_key)
+model = genai.GenerativeModel('gemini-1.5-flash')
+
+# Safety settings for medical content
+safety_settings = {
+    HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE
+}
+
+# Usage patterns
+- Document analysis: Full document text with structured prompt
+- Q&A: Context-aware queries with document references
+- Vision: Image document processing
+```
+
+### Search and Retrieval
+- **ChromaDB**: Vector similarity search for documents
+- **SQL queries**: Structured data retrieval
+- **Full-text search**: Regex patterns for health metrics
+- **Semantic search**: Embeddings for relevant context
+
+### External Health APIs
+1. **OpenFDA API**: Drug information, adverse events
+2. **RxNorm**: Medication standardization
+3. **ICD-10 API**: Disease classification
+4. **Lab reference ranges**: Normal value databases
+
+## Development and Deployment
+
+### Local Development
+```bash
+# Setup
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+
+# Run with debug logging
+export STREAMLIT_LOGGER_LEVEL=debug
+streamlit run src/main.py
+```
+
+### Production Deployment (Recommendations)
+1. **Containerization**: Docker for consistent deployment
+2. **Secrets Management**: HashiCorp Vault or AWS Secrets Manager
+3. **Load Balancing**: Nginx or cloud load balancers
+4. **Monitoring**: Prometheus + Grafana or cloud monitoring
+5. **Backup**: Regular database backups, document archival

@@ -4,6 +4,85 @@
 
 HIA is your personal AI health analyst. It securely analyzes your medical documents—lab results, doctor's notes, prescriptions, and more—then delivers clear, actionable insights, tracks your health trends, and empowers you to make better health decisions every day.
 
+## Setup Instructions
+
+### Prerequisites
+- Python 3.8 or higher
+- pip (Python package manager)
+- Google Gemini API key (free from [Google AI Studio](https://makersuite.google.com/app/apikey))
+- (Optional) Tesseract OCR for image processing
+
+### Installation
+
+1. **Clone the repository:**
+   ```bash
+   git clone <repository-url>
+   cd UNCSquad
+   ```
+
+2. **Create and activate virtual environment:**
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   ```
+
+3. **Install dependencies:**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+### Dependencies
+
+Core dependencies include:
+- `streamlit>=1.28.0` - Web interface
+- `google-generativeai>=0.8.0` - Gemini AI integration
+- `PyPDF2>=3.0.0` - PDF processing
+- `pillow>=10.0.0` - Image processing
+- `pytesseract>=0.3.10` - OCR capabilities
+- `chromadb>=0.4.0` - Vector storage
+- `python-docx>=0.8.11` - Word document processing
+- `plotly>=5.17.0` - Data visualization
+- `pandas>=2.0.0` - Data manipulation
+- `cryptography>=41.0.0` - Security features
+
+Full list in `requirements.txt`
+
+### How to Run
+
+1. **Quick Start:**
+   ```bash
+   ./run_hia.sh
+   ```
+
+2. **Manual Start:**
+   ```bash
+   source venv/bin/activate
+   streamlit run src/main.py
+   ```
+
+3. **Access the app:**
+   - Open browser to `http://localhost:8501`
+   - Enter your Gemini API key in the sidebar
+   - Upload medical documents
+   - Get AI-powered analysis!
+
+### Optional: Install OCR Support
+
+For analyzing scanned documents and images:
+
+**macOS:**
+```bash
+brew install tesseract
+```
+
+**Ubuntu/Debian:**
+```bash
+sudo apt-get install tesseract-ocr
+```
+
+**Windows:**
+Download from [GitHub](https://github.com/UB-Mannheim/tesseract/wiki)
+
 ## Key Features
 
 ### 1. Multi-Format Medical Report Analysis 📄
@@ -180,17 +259,57 @@ Minimum system requirements:
 ## Project Structure
 
 ```
-hia-health-insights/
+UNCSquad/
 ├── src/
-│   ├── agent/           # Core agent logic
+│   ├── agent/           # Core agent logic (planner, executor, memory)
+│   │   ├── planner.py   # Task planning with ReAct pattern
+│   │   ├── executor.py  # Task execution engine
+│   │   └── memory.py    # Health data persistence
 │   ├── api/            # External API integrations
-│   ├── ui/             # Streamlit interface
+│   │   ├── gemini_client.py  # Google Gemini integration
+│   │   └── health_apis.py    # Health data APIs
+│   ├── ui/             # User interface
+│   │   ├── streamlit_app.py  # Main app interface
+│   │   └── components.py     # Reusable UI components
 │   └── utils/          # Helper utilities
-├── data/               # Local data storage
+│       ├── document_parser.py # Multi-format document processing
+│       ├── security.py        # Encryption and security
+│       └── visualizations.py  # Health data charts
+├── data/               # Local encrypted storage
+├── .streamlit/         # Streamlit configuration
 ├── requirements.txt    # Python dependencies
-├── start_app.sh       # Quick start script
-└── test_document.txt  # Sample medical document
+├── run_hia.sh         # Quick start script
+├── test_document.txt  # Sample medical document
+├── ARCHITECTURE.md    # System design documentation
+└── EXPLANATION.md     # Agent reasoning documentation
 ```
+
+## Testing
+
+1. **Test basic setup:**
+   ```bash
+   python test_simple.py
+   ```
+
+2. **Test Gemini API:**
+   ```bash
+   python test_gemini.py
+   ```
+
+3. **Debug components:**
+   ```bash
+   python debug_test.py
+   ```
+
+## Troubleshooting
+
+See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for common issues and solutions.
+
+Quick fixes:
+- **API Key Issues**: Make sure to click "Set API Key" button after entering it
+- **Black Screen**: Use the fixed version in `src/app_v2.py`
+- **Q&A Not Working**: Upload documents first, then ask specific questions
+- **OCR Errors**: Install Tesseract for image processing
 
 ## Contributing
 
@@ -205,6 +324,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - Google Gemini API for AI capabilities
 - Streamlit for the web interface
 - Open source community for various libraries
+- Google Agentic AI Hackathon for inspiration
 
 ---
 
