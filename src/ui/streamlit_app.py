@@ -9,7 +9,9 @@ import logging
 from typing import Dict, Any, List, Optional
 
 # Import HIA components
-from src.agent import HealthAgentPlanner, HealthAgentExecutor, HealthMemoryStore
+from src.agent.planner import HealthAgentPlanner
+from src.agent.executor import HealthTaskExecutor
+from src.agent.memory import HealthMemoryStore
 from src.utils import SecurityManager
 from src.api import GeminiClient
 
@@ -352,10 +354,7 @@ class HIAStreamlitApp:
             self.planner = HealthAgentPlanner()
             
             if self.gemini_api_key:
-                self.executor = HealthAgentExecutor(
-                    gemini_api_key=self.gemini_api_key,
-                    memory_store=self.memory_store
-                )
+                self.executor = HealthTaskExecutor(gemini_api_key=self.gemini_api_key)
             else:
                 self.executor = None
         except Exception as e:
@@ -1074,55 +1073,150 @@ class HIAStreamlitApp:
             return
         
         try:
-            # Create analysis task with proper file path
-            tasks = self.planner.plan(f"Analyze medical document at {file_path}", {
-                "file_path": str(file_path),
-                "document_type": "medical"
-            })
+            # Import the components we need
+            from src.utils.document_parser import DocumentParser
+            from src.api.gemini_client import GeminiClient
             
-            # Execute tasks
-            results = await self.executor.execute_tasks(tasks)
+            # Step 1: Parse the document
+            st.info("📄 Parsing document...")
+            parser = DocumentParser()
             
-            # Process results
-            analysis_found = False
-            for result in results:
-                if result.success and result.result:
-                    # Extract the analysis data
-                    analysis = {
+            # Parse document with detailed error handling
+            try:
+                document_data = await parser.parse_document(file_path)
+                st.success("✅ Document parsed successfully!")
+            except RuntimeError as e:
+                # OCR/dependency error
+                raise e
+            except Exception as e:
+                st.error(f"Failed to parse document: {str(e)}")
+                raise e
+            
+            # Show parsing notes if any
+            if 'parsing_notes' in document_data and document_data['parsing_notes']:
+                with st.expander("📝 Parsing Notes", expanded=True):
+                    for note in document_data['parsing_notes']:
+                        st.write(f"• {note}")
+            
+            # Step 2: Display extracted content
+            with st.expander("📊 Extracted Data", expanded=True):
+                # Show metadata
+                if document_data.get('metadata'):
+                    st.write("**Document Metadata:**")
+                    for key, value in document_data['metadata'].items():
+                        st.write(f"- {key}: {value}")
+                
+                # Show extracted values
+                if document_data.get('extracted_values'):
+                    st.write("\n**Extracted Health Metrics:**")
+                    values_df = pd.DataFrame(document_data['extracted_values'])
+                    st.dataframe(values_df, use_container_width=True)
+                    
+                    # Store metrics in memory
+                    try:
+                        metrics = {}
+                        for val in document_data['extracted_values']:
+                            metrics[val['test_name']] = {
+                                'value': val['value'],
+                                'unit': val.get('unit', '')
+                            }
+                        await self.memory_store.store_health_metrics(
+                            metrics, 
+                            source=f"document_{file_path.name}"
+                        )
+                        st.success(f"✅ Stored {len(metrics)} health metrics")
+                    except Exception as e:
+                        st.warning(f"Could not store metrics: {str(e)}")
+                else:
+                    st.info("No health metrics found in document")
+                
+                # Show text preview
+                if document_data.get('cleaned_text'):
+                    st.write("\n**Document Text Preview:**")
+                    text_preview = document_data['cleaned_text'][:500] + "..." if len(document_data['cleaned_text']) > 500 else document_data['cleaned_text']
+                    st.text(text_preview)
+            
+            # Step 3: AI Analysis
+            if self.gemini_api_key and document_data.get('cleaned_text'):
+                st.info("🤖 Generating AI analysis...")
+                
+                try:
+                    client = GeminiClient(self.gemini_api_key)
+                    
+                    # Create a comprehensive prompt
+                    analysis_prompt = f"""
+                    Analyze this medical document and provide a patient-friendly summary.
+                    
+                    Document Type: {document_data.get('file_type', 'Unknown')}
+                    Metadata: {document_data.get('metadata', {})}
+                    Extracted Values: {document_data.get('extracted_values', [])[:20]}  # Limit to first 20
+                    Document Text (first 1000 chars): {document_data.get('cleaned_text', '')[:1000]}
+                    
+                    Please provide:
+                    1. What type of medical document this is
+                    2. Key findings or values that stand out  
+                    3. Any values that appear abnormal or concerning
+                    4. General health insights based on the data
+                    5. Recommendations for the patient
+                    
+                    Keep the summary concise, clear, and patient-friendly. Avoid medical jargon.
+                    """
+                    
+                    # Get AI analysis
+                    ai_summary = await client.generate_text(analysis_prompt)
+                    
+                    # Display AI summary
+                    st.markdown("### 🤖 AI Health Analysis")
+                    st.info(ai_summary)
+                    
+                    # Store the analysis result
+                    analysis_result = {
                         'filename': file_path.name,
                         'date': datetime.now().strftime("%Y-%m-%d"),
-                        'summary': result.result.get('analysis', 'Analysis completed'),
-                        'values': result.result.get('metrics', []),
-                        'recommendations': ['Review results with your healthcare provider',
-                                          'Monitor any abnormal values',
-                                          'Schedule follow-up if needed']
+                        'summary': ai_summary,
+                        'values': document_data.get('extracted_values', []),
+                        'metadata': document_data.get('metadata', {}),
+                        'recommendations': [
+                            'Review these results with your healthcare provider',
+                            'Keep a record of these results for future reference',
+                            'Monitor any values flagged as abnormal'
+                        ]
                     }
                     
-                    # If we have metrics, format them properly
-                    if isinstance(analysis['values'], dict):
-                        formatted_values = []
-                        for metric_name, metric_data in analysis['values'].items():
-                            if isinstance(metric_data, dict):
-                                formatted_values.append({
-                                    'test_name': metric_name,
-                                    'value': metric_data.get('value', 'N/A'),
-                                    'unit': metric_data.get('unit', ''),
-                                    'status': 'Normal' if metric_data.get('is_normal', True) else 'Abnormal'
-                                })
-                        analysis['values'] = formatted_values
+                    st.session_state.analysis_results.append(analysis_result)
                     
-                    st.session_state.analysis_results.append(analysis)
-                    analysis_found = True
-                    break
-            
-            if analysis_found:
-                st.success("✅ **Document analyzed successfully!**")
+                    # Store document in memory
+                    try:
+                        await self.memory_store.store_document(
+                            document_id=f"doc_{datetime.now().timestamp()}",
+                            content=document_data.get('cleaned_text', ''),
+                            document_type=document_data.get('file_type', 'unknown'),
+                            metadata={
+                                **document_data.get('metadata', {}),
+                                'summary': ai_summary
+                            }
+                        )
+                    except Exception as e:
+                        st.warning(f"Could not store document: {str(e)}")
+                    
+                    st.success("✅ **Analysis complete!**")
+                    
+                except Exception as e:
+                    st.warning(f"⚠️ Could not generate AI summary: {str(e)}")
+                    st.info("The document was still parsed successfully. Check the extracted data above.")
             else:
-                st.warning("⚠️ **Analysis completed but no results were extracted.**")
-                st.info("Please check the document format and try again. If the issue persists, the document may be:")
-                st.markdown("• Low quality or blurry image")
-                st.markdown("• Encrypted or password-protected PDF")
-                st.markdown("• Unsupported file format")
+                st.warning("⚠️ AI analysis not available. Set up Gemini API key for AI-powered insights.")
+                
+                # Still save basic results
+                analysis_result = {
+                    'filename': file_path.name,
+                    'date': datetime.now().strftime("%Y-%m-%d"),
+                    'summary': 'Document parsed successfully. AI analysis not available.',
+                    'values': document_data.get('extracted_values', []),
+                    'metadata': document_data.get('metadata', {}),
+                    'recommendations': ['Review with healthcare provider']
+                }
+                st.session_state.analysis_results.append(analysis_result)
             
         except RuntimeError as e:
             # Handle system dependency errors (like missing Tesseract)
@@ -1183,55 +1277,69 @@ class HIAStreamlitApp:
                     st.success("✅ python-docx: Available")
                 except:
                     st.error("❌ python-docx: Not available")
+                
+                # Show traceback for debugging
+                import traceback
+                st.code(traceback.format_exc())
     
     async def _get_chat_response(self, user_input: str) -> str:
         """Get response from health agent."""
         if not self.gemini_api_key:
             return "Please set up your Gemini API key in the login screen to use the chat feature."
         
-        if not self.executor:
-            return "Please refresh the page after setting up your API key."
-        
         try:
-            # Plan and execute tasks
-            tasks = self.planner.plan(user_input)
-            
-            # Execute tasks
-            results = await self.executor.execute_tasks(tasks)
-            
-            # Extract response
-            for result in results:
-                if result.success:
-                    if 'answer' in result.result:
-                        return result.result['answer']
-                    elif 'analysis' in result.result:
-                        return result.result['analysis']
-            
-            # If no direct answer, generate one using context
+            # Get relevant context from memory
             context = await self.memory_store.get_relevant_context(user_input)
             
             # Use Gemini directly for Q&A
             from src.api.gemini_client import GeminiClient
             gemini = GeminiClient(self.gemini_api_key)
             
+            # Build context string
+            context_str = ""
+            if context.get('recent_metrics'):
+                context_str += "\nRecent Health Metrics:\n"
+                for metric, data in context['recent_metrics'].items():
+                    context_str += f"- {metric}: {data.get('value')} {data.get('unit', '')}\n"
+            
+            if context.get('documents'):
+                context_str += "\nRecent Documents:\n"
+                for doc in context['documents'][:3]:  # Limit to 3 most relevant
+                    context_str += f"- {doc.get('metadata', {}).get('document_type', 'Document')}: {doc.get('content', '')[:200]}...\n"
+            
             prompt = f"""
-            Based on the user's health context and question, provide a helpful response.
+            You are HIA (Health Insights Agent), a knowledgeable and friendly AI health assistant.
             
-            Context: {context}
+            User's Health Context:
+            {context_str if context_str else "No previous health data available."}
             
-            Question: {user_input}
+            User Question: {user_input}
             
-            Provide a clear, informative answer. If the question is about specific health metrics,
-            explain what they mean and provide general guidance. Always remind users to consult
-            their healthcare provider for medical advice.
+            Please provide a helpful, accurate, and easy-to-understand response. Consider:
+            1. Answer the question directly and clearly
+            2. If discussing health metrics, explain what normal ranges are
+            3. Provide practical advice when appropriate
+            4. Always remind users to consult healthcare providers for medical decisions
+            5. Be empathetic and supportive
+            
+            If you don't have enough information to answer fully, acknowledge this and suggest what information would be helpful.
             """
             
-            response = await gemini.analyze_text(prompt)
+            response = await gemini.generate_text(prompt)
             return response
             
         except Exception as e:
             logger.error(f"Error in chat response: {str(e)}")
-            return f"I encountered an error: {str(e)}. Please make sure your Gemini API key is valid."
+            
+            # More specific error messages
+            if "API key not valid" in str(e):
+                return "❌ Your Gemini API key appears to be invalid. Please check your API key in the settings."
+            elif "quota" in str(e).lower():
+                return "⚠️ API quota exceeded. Please try again later or check your Gemini API usage limits."
+            elif "timeout" in str(e).lower():
+                return "⏱️ Request timed out. Please try again with a shorter question."
+            else:
+                return f"😔 I encountered an error while processing your question. Error: {str(e)}\n\nPlease try again or rephrase your question."
     
     async def _generate_report(self, report_type: str, 
                               include_options: List[str]) -> Optional[str]:

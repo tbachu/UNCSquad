@@ -6,7 +6,15 @@ import json
 
 from .planner import Task, TaskType
 from .memory import HealthMemoryStore
-from src.api.gemini_client import GeminiClient
+# Fix imports with proper error handling
+try:
+    from src.api.gemini_client import GeminiClient
+except ImportError:
+    import sys
+    import os
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+    from src.api.gemini_client import GeminiClient
+
 from src.api.health_apis import HealthAPIClient
 from src.utils.document_parser import DocumentParser
 from src.utils.visualizations import HealthVisualizer
@@ -24,7 +32,8 @@ class TaskResult:
     metadata: Optional[Dict[str, Any]] = None
 
 
-class HealthAgentExecutor:
+# Add HealthTaskExecutor as an alias
+class HealthTaskExecutor:
     """
     Executes tasks planned by the HealthAgentPlanner.
     Integrates with Gemini API and other tools to process health data.
@@ -531,3 +540,6 @@ class HealthAgentExecutor:
         medications = [med.strip() for med in response.split(',')]
         
         return medications
+
+# Keep original class name too for compatibility
+HealthAgentExecutor = HealthTaskExecutor

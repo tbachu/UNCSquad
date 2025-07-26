@@ -347,3 +347,79 @@ class GeminiClient:
                 "assessment": response,
                 "recommendation": "Please consult a healthcare provider"
             }
+    
+    async def generate_text(self, prompt: str) -> str:
+        """Generate text using Gemini."""
+        try:
+            # Add safety settings to prevent blocking
+            response = self.text_model.generate_content(
+                prompt,
+                safety_settings=self.safety_settings
+            )
+            
+            # Check if response was blocked
+            if hasattr(response, 'prompt_feedback') and response.prompt_feedback:
+                if hasattr(response.prompt_feedback, 'block_reason') and response.prompt_feedback.block_reason:
+                    logger.warning(f"Content blocked: {response.prompt_feedback.block_reason}")
+                    return "I'm unable to process this request due to content safety filters. Please rephrase your question."
+            
+            # Handle empty responses
+            if not response.text:
+                return "I couldn't generate a response. Please try rephrasing your question."
+            
+            return response.text
+        except Exception as e:
+            logger.error(f"Error generating text: {str(e)}")
+            raise
+    
+    async def analyze_health_document(self, document_text: str, 
+                                    document_type: str = "unknown") -> Dict[str, Any]:
+        """Analyze health document using Gemini."""
+        # Limit document text to avoid token limits
+        max_text_length = 4000
+        if len(document_text) > max_text_length:
+            document_text = document_text[:max_text_length] + "... [truncated]"
+        
+        prompt = f"""
+        Analyze this {document_type} medical document.
+        
+        Document text:
+        {document_text}
+        
+        Please extract and provide:
+        1. Document type and purpose
+        2. Key health metrics and values
+        3. Any abnormal or concerning findings
+        4. Overall health insights
+        5. Recommendations for the patient
+        
+        Format the response as JSON with keys:
+        - document_type
+        - summary
+        - metrics (list of {{name, value, unit, is_normal}})
+        - findings (list of strings)
+        - recommendations (list of strings)
+        """
+        
+        try:
+            response = await self.generate_text(prompt)
+            # Try to parse as JSON
+            import json
+            
+            # Clean up response if it has markdown code blocks
+            if "```json" in response:
+                response = response.split("```json")[1].split("```")[0].strip()
+            elif "```" in response:
+                response = response.split("```")[1].split("```")[0].strip()
+            
+            return json.loads(response)
+        except Exception as e:
+            logger.warning(f"Could not parse JSON response: {str(e)}")
+            # If JSON parsing fails, return structured response
+            return {
+                "document_type": document_type,
+                "summary": response if response else "Unable to analyze document",
+                "metrics": [],
+                "findings": ["See summary above"],
+                "recommendations": ["Consult with healthcare provider"]
+            }
